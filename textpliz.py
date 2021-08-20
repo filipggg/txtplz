@@ -6,10 +6,9 @@ from fairseq.models.transformer_lm import TransformerLanguageModel
 import sys
 import torch
 
-device = 'cpu'
-# można spróbować odkomentować przy gpu
-#device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
+# jeśli nie działa na karcie:
+# device = 'cuda'
 
 model_dir = "."
 loaded = hub_utils.from_pretrained(
