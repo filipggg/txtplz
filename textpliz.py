@@ -32,3 +32,4 @@ for line in sys.stdin:
         [line],
         beam=5, sampling=True, sampling_topk=50, sampling_topp=0.95,
         temperature=0.5, max_len_a=2, max_len_b=300, no_repeat_ngram_size=3)
+    print(result[0])
