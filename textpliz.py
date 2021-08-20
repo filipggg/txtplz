@@ -8,7 +8,7 @@ import torch
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # jeśli nie działa na karcie:
-# device = 'cuda'
+# device = 'cpu'
 
 model_dir = "."
 loaded = hub_utils.from_pretrained(
