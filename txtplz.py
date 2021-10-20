@@ -9,6 +9,8 @@ import requests
 from pathlib import Path
 import py7zr
 import argparse
+import itertools as it
+import re
 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -46,6 +48,39 @@ def download_polish_gpt2_model(model_size):
         ['model.pt'])
 
 
+def grouper(n, iterable):
+    iterable = iter(iterable)
+    return iter(lambda: list(it.islice(iterable, n)), [])
+
+
+def get_polish_gpt2(variant):
+    model_dir = download_polish_gpt2_model(variant)
+
+    loaded = hub_utils.from_pretrained(
+        model_name_or_path=model_dir,
+        checkpoint_file="model.pt",
+        data_name_or_path=model_dir,
+        bpe="hf_byte_bpe",
+        bpe_merges=os.path.join(model_dir, "merges.txt"),
+        bpe_vocab=os.path.join(model_dir, "vocab.json"),
+        load_checkpoint_heads=True,
+        archive_map=TransformerLanguageModel.hub_models()
+    )
+    model = hub_utils.GeneratorHubInterface(
+        loaded["args"], loaded["task"], loaded["models"])
+    return model
+
+
+def get_model(model_name):
+    if m := re.search(r'^polish\.gpt2\.(.*)$', model_name):
+        return get_polish_gpt2(m.group(1))
+    elif model_name == 'gpt2':
+        return torch.hub.load('huggingface/transformers', 'modelForCausalLM', 'gpt2')
+    else:
+        print(f'Unknown model {model_name}', file=sys.stderr)
+        exit(1)
+
+
 parser = argparse.ArgumentParser(description='Generate text.')
 parser.add_argument('model', metavar='MODEL', type=str,
                     help='model name')
@@ -55,37 +90,18 @@ parser.add_argument('--batch-size',
 args = parser.parse_args()
 
 
-model = args.model
+model_name = args.model
 
+model = get_model(model_name)
 
-if model == 'polish.gpt2.medium':
-    model_dir = download_polish_gpt2_model('medium')
-elif model == 'polish.gpt2.large':
-    model_dir = download_polish_gpt2_model('large')
-else:
-    print(f'Unknown model {model}', file=sys.stderr)
-    exit(1)
-
-
-loaded = hub_utils.from_pretrained(
-    model_name_or_path=model_dir,
-    checkpoint_file="model.pt",
-    data_name_or_path=model_dir,
-    bpe="hf_byte_bpe",
-    bpe_merges=os.path.join(model_dir, "merges.txt"),
-    bpe_vocab=os.path.join(model_dir, "vocab.json"),
-    load_checkpoint_heads=True,
-    archive_map=TransformerLanguageModel.hub_models()
-)
-model = hub_utils.GeneratorHubInterface(
-    loaded["args"], loaded["task"], loaded["models"])
 model.to(device)
 model.eval()
 
-for line in sys.stdin:
-    line = line.rstrip('\n')
-    result = model.sample(
-        [line],
+
+for line_batch in grouper(args.batch_size, (line.rstrip('\n') for line in sys.stdin)):
+    results = model.sample(
+        line_batch,
         beam=5, sampling=True, sampling_topk=50, sampling_topp=0.95,
         temperature=0.5, max_len_a=2, max_len_b=300, no_repeat_ngram_size=3)
-    print(result[0])
+    for output_line in results:
+        print(output_line)
