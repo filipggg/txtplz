@@ -114,12 +114,20 @@ class PolishGPT2:
             temperature=0.5, max_len_a=2, max_len_b=300, no_repeat_ngram_size=3)
         return results
 
+
 class GPT2:
-    def __init__(self, device, variant):
+    def __init__(self, device, opts, variant):
         self.model = torch.hub.load('huggingface/transformers', 'modelForCausalLM', variant).eval().to(device)
         self.device = device
         self.tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'gpt2')
         self.pad_token_id = 50256
+        self.opts = opts
+
+    def _detok(self, ids):
+        if self.opts.mark_tokens:
+            return '|'.join(self.tokenizer.convert_ids_to_tokens(ids, skip_special_tokens=True))
+        else:
+            return self.tokenizer.decode(ids, skip_special_tokens=True)
 
     def run(self, line_batch):
         tokens = [self.tokenizer(line, add_special_tokens=True).input_ids for line in line_batch]
@@ -129,16 +137,16 @@ class GPT2:
         results = self.model.generate(t, beam=5, do_sample=True, sampling_topk=50, sampling_topp=0.95,
                                       max_length=100,
                                       temperature=0.5, max_len_a=2, max_len_b=300, no_repeat_ngram_size=3)
-        return (self.tokenizer.decode(result, skip_special_tokens=True) for result in results)
+        return (self._detok(result) for result in results)
 
 
-def get_model(device, model_name):
+def get_model(device, opts, model_name):
     normalized_model_name = normalize_model_name(model_name)
 
     if m := re.search(r'^polish\.gpt2\.(.*)$', normalized_model_name):
         return PolishGPT2(device, m.group(1))
     elif normalized_model_name in ['gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl']:
-        return GPT2(device, normalized_model_name)
+        return GPT2(device, opts, normalized_model_name)
     else:
         print(f'Unknown model {model_name}', file=sys.stderr)
         exit(1)
@@ -153,13 +161,14 @@ parser.add_argument('--batch-size',
 parser.add_argument('--prompt',
                     type=str, default=None,
                     help='prompt')
+parser.add_argument('--mark-tokens', help='mark tokens', action='store_true')
 opts = parser.parse_args()
 
 opts.prompt = unquote(opts.prompt)
 
 model_name = opts.model
 
-model = get_model(device, model_name)
+model = get_model(device, opts, model_name)
 
 for line_batch in grouper(opts.batch_size, (prepare_input(line, opts) for line in sys.stdin)):
     results = model.run(line_batch)
