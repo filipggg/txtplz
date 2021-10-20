@@ -76,7 +76,9 @@ def unquote(t):
 
 
 def prepare_input(line, opts):
-    inp = line.rstrip('\n')
+    line = line.rstrip('\n')
+
+    inp = opts.input_pattern.replace('{}', line)
 
     if opts.prompt is not None:
         inp = opts.prompt + inp
@@ -180,10 +182,12 @@ parser.add_argument('--prompt',
                     help='prompt')
 parser.add_argument('--mark-tokens', help='mark tokens', action='store_true')
 parser.add_argument('--delimiter', help='end delimiter', type=str, default=None)
+parser.add_argument('--input-pattern', help='end delimiter', type=str, default='{}')
 opts = parser.parse_args()
 
 opts.prompt = unquote(opts.prompt)
 opts.delimiter = unquote(opts.delimiter)
+opts.input_pattern = unquote(opts.input_pattern)
 
 model_name = opts.model
 
