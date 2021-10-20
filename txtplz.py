@@ -84,12 +84,28 @@ class PolishGPT2:
             temperature=0.5, max_len_a=2, max_len_b=300, no_repeat_ngram_size=3)
         return results
 
+class GPT2:
+    def __init__(self, device, variant):
+        self.model = torch.hub.load('huggingface/transformers', 'modelForCausalLM', 'gpt2').eval().to(device)
+        self.device = device
+        self.tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'gpt2')
+        self.pad_token_id = 50256
+
+    def run(self, line_batch):
+        tokens = [self.tokenizer(line, add_special_tokens=True).input_ids for line in line_batch]
+        padded_tokens = list(zip(*it.zip_longest(*tokens, fillvalue=self.pad_token_id)))
+
+        t = torch.tensor(padded_tokens).to(self.device)
+        results = self.model.generate(t, beam=5, do_sample=True, sampling_topk=50, sampling_topp=0.95,
+                                      temperature=0.5, max_len_a=2, max_len_b=300, no_repeat_ngram_size=3)
+        return (self.tokenizer.decode(result, skip_special_tokens=True) for result in results)
+
 
 def get_model(device, model_name):
     if m := re.search(r'^polish\.gpt2\.(.*)$', model_name):
         return PolishGPT2(device, m.group(1))
     elif model_name == 'gpt2':
-        return torch.hub.load('huggingface/transformers', 'modelForCausalLM', 'gpt2')
+        return GPT2(device, 'gpt2')
     else:
         print(f'Unknown model {model_name}', file=sys.stderr)
         exit(1)
