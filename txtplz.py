@@ -11,6 +11,7 @@ import py7zr
 import argparse
 import itertools as it
 import re
+from transformers import AutoTokenizer, AutoModelWithLMHead
 
 alt_names = {
     'gpt2.small': 'gpt2',
@@ -71,14 +72,14 @@ def unquote(t):
     if t is None:
         return t
 
-    return t.replace('\\n', '\n')
+    return t.replace('\\n', '\n').replace('\\r', '\r')
 
 
 def prepare_input(line, opts):
-    inp = line
+    inp = line.rstrip('\n')
 
     if opts.prompt is not None:
-        inp = opts.prompt + line
+        inp = opts.prompt + inp
 
     return inp
 
