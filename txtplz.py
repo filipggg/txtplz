@@ -71,9 +71,23 @@ def get_polish_gpt2(variant):
     return model
 
 
-def get_model(model_name):
+class PolishGPT2:
+    def __init__(self, device, variant):
+        self.model = get_polish_gpt2(variant)
+        self.model.to(device)
+        self.model.eval()
+
+    def run(self, line_batch):
+        results = self.model.sample(
+            line_batch,
+            beam=5, sampling=True, sampling_topk=50, sampling_topp=0.95,
+            temperature=0.5, max_len_a=2, max_len_b=300, no_repeat_ngram_size=3)
+        return results
+
+
+def get_model(device, model_name):
     if m := re.search(r'^polish\.gpt2\.(.*)$', model_name):
-        return get_polish_gpt2(m.group(1))
+        return PolishGPT2(device, m.group(1))
     elif model_name == 'gpt2':
         return torch.hub.load('huggingface/transformers', 'modelForCausalLM', 'gpt2')
     else:
@@ -92,16 +106,9 @@ args = parser.parse_args()
 
 model_name = args.model
 
-model = get_model(model_name)
-
-model.to(device)
-model.eval()
-
+model = get_model(device, model_name)
 
 for line_batch in grouper(args.batch_size, (line.rstrip('\n') for line in sys.stdin)):
-    results = model.sample(
-        line_batch,
-        beam=5, sampling=True, sampling_topk=50, sampling_topp=0.95,
-        temperature=0.5, max_len_a=2, max_len_b=300, no_repeat_ngram_size=3)
+    results = model.run(line_batch)
     for output_line in results:
         print(output_line)
