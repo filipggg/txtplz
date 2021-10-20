@@ -153,6 +153,22 @@ def get_model(device, opts, model_name):
         exit(1)
 
 
+def process_output(opts, out):
+    final_out = out
+
+    if opts.prompt:
+        promptlen = len(opts.prompt)
+        if out[0:promptlen] == opts.prompt:
+            final_out = out[promptlen:]
+
+    if opts.delimiter is not None:
+        ix = final_out.find(opts.delimiter)
+        if ix >= 0:
+            final_out = final_out[0:ix]
+
+    return final_out
+
+
 parser = argparse.ArgumentParser(description='Generate text.')
 parser.add_argument('model', metavar='MODEL', type=str,
                     help='model name')
@@ -163,9 +179,11 @@ parser.add_argument('--prompt',
                     type=str, default=None,
                     help='prompt')
 parser.add_argument('--mark-tokens', help='mark tokens', action='store_true')
+parser.add_argument('--delimiter', help='end delimiter', type=str, default=None)
 opts = parser.parse_args()
 
 opts.prompt = unquote(opts.prompt)
+opts.delimiter = unquote(opts.delimiter)
 
 model_name = opts.model
 
@@ -174,4 +192,4 @@ model = get_model(device, opts, model_name)
 for line_batch in grouper(opts.batch_size, (prepare_input(line, opts) for line in sys.stdin)):
     results = model.run(line_batch)
     for output_line in results:
-        print(output_line)
+        print(process_output(opts, output_line))
