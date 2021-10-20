@@ -67,6 +67,22 @@ def grouper(n, iterable):
     return iter(lambda: list(it.islice(iterable, n)), [])
 
 
+def unquote(t):
+    if t is None:
+        return t
+
+    return t.replace('\\n', '\n')
+
+
+def prepare_input(line, opts):
+    inp = line
+
+    if opts.prompt is not None:
+        inp = opts.prompt + line
+
+    return inp
+
+
 def get_polish_gpt2(variant):
     model_dir = download_polish_gpt2_model(variant)
 
@@ -111,6 +127,7 @@ class GPT2:
 
         t = torch.tensor(padded_tokens).to(self.device)
         results = self.model.generate(t, beam=5, do_sample=True, sampling_topk=50, sampling_topp=0.95,
+                                      max_length=100,
                                       temperature=0.5, max_len_a=2, max_len_b=300, no_repeat_ngram_size=3)
         return (self.tokenizer.decode(result, skip_special_tokens=True) for result in results)
 
@@ -133,14 +150,18 @@ parser.add_argument('model', metavar='MODEL', type=str,
 parser.add_argument('--batch-size',
                     type=int, default=1,
                     help='batch size')
-args = parser.parse_args()
+parser.add_argument('--prompt',
+                    type=str, default=None,
+                    help='prompt')
+opts = parser.parse_args()
 
+opts.prompt = unquote(opts.prompt)
 
-model_name = args.model
+model_name = opts.model
 
 model = get_model(device, model_name)
 
-for line_batch in grouper(args.batch_size, (line.rstrip('\n') for line in sys.stdin)):
+for line_batch in grouper(opts.batch_size, (prepare_input(line, opts) for line in sys.stdin)):
     results = model.run(line_batch)
     for output_line in results:
         print(output_line)
