@@ -12,6 +12,20 @@ import argparse
 import itertools as it
 import re
 
+alt_names = {
+    'gpt2.small': 'gpt2',
+    'gpt2.medium': 'gpt2-medium',
+    'gpt2.large': 'gpt2-large',
+    'gpt2.xl': 'gpt2-xl'
+}
+
+def normalize_model_name(model_name):
+    if model_name in alt_names:
+        return alt_names[model_name]
+
+    return model_name
+
+
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # jeśli nie działa na karcie:
@@ -86,7 +100,7 @@ class PolishGPT2:
 
 class GPT2:
     def __init__(self, device, variant):
-        self.model = torch.hub.load('huggingface/transformers', 'modelForCausalLM', 'gpt2').eval().to(device)
+        self.model = torch.hub.load('huggingface/transformers', 'modelForCausalLM', variant).eval().to(device)
         self.device = device
         self.tokenizer = torch.hub.load('huggingface/pytorch-transformers', 'tokenizer', 'gpt2')
         self.pad_token_id = 50256
@@ -102,10 +116,12 @@ class GPT2:
 
 
 def get_model(device, model_name):
-    if m := re.search(r'^polish\.gpt2\.(.*)$', model_name):
+    normalized_model_name = normalize_model_name(model_name)
+
+    if m := re.search(r'^polish\.gpt2\.(.*)$', normalized_model_name):
         return PolishGPT2(device, m.group(1))
-    elif model_name == 'gpt2':
-        return GPT2(device, 'gpt2')
+    elif normalized_model_name in ['gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl']:
+        return GPT2(device, normalized_model_name)
     else:
         print(f'Unknown model {model_name}', file=sys.stderr)
         exit(1)
