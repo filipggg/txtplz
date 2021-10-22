@@ -12,6 +12,12 @@ import argparse
 import itertools as it
 import re
 from transformers import T5Tokenizer, T5ForConditionalGeneration
+import transformers as trans
+
+
+trans.logging.set_verbosity_error()
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
 
 
 alt_names = {
@@ -197,9 +203,9 @@ def process_output(opts, out):
             final_out = out[promptlen:]
 
     if opts.delimiter is not None:
-        ix = final_out.find(opts.delimiter)
-        if ix >= 0:
-            final_out = final_out[0:ix]
+        m = re.search(opts.delimiter, final_out)
+        if m:
+            final_out = final_out[0:m.start()]
 
     return final_out
 
