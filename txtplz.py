@@ -11,13 +11,20 @@ import py7zr
 import argparse
 import itertools as it
 import re
-from transformers import AutoTokenizer, AutoModelWithLMHead
+from transformers import T5Tokenizer, T5ForConditionalGeneration
+
 
 alt_names = {
     'gpt2.small': 'gpt2',
     'gpt2.medium': 'gpt2-medium',
     'gpt2.large': 'gpt2-large',
-    'gpt2.xl': 'gpt2-xl'
+    'gpt2.xl': 'gpt2-xl',
+
+    't5.small': 't5-small',
+    't5.base': 't5-base',
+    't5.large': 't5-large',
+
+    't5.v1_1.large': 'google/t5-v1_1-base'
 }
 
 def normalize_model_name(model_name):
@@ -143,6 +150,30 @@ class GPT2:
         return (self._detok(result) for result in results)
 
 
+class T5:
+    def __init__(self, device, opts, variant):
+        self.tokenizer = T5Tokenizer.from_pretrained(variant)
+        self.model = T5ForConditionalGeneration.from_pretrained(variant).eval().to(device)
+
+        self.tokenizer.padding_side = "left"
+        self.tokenizer.pad_token = self.tokenizer.eos_token
+
+    def run(self, line_batch):
+        inputs = self.tokenizer(line_batch, return_tensors="pt", padding=True).to(device)
+
+        output_sequences = self.model.generate(
+            input_ids=inputs['input_ids'],
+            attention_mask=inputs['attention_mask'],
+            num_beams=1,
+#            top_k=50,
+#            top_p=0.95,
+#            temperature=1.0,
+#            no_repeat_ngram_size=3,
+            do_sample=False)
+
+        return self.tokenizer.batch_decode(output_sequences, skip_special_tokens=False)
+
+
 def get_model(device, opts, model_name):
     normalized_model_name = normalize_model_name(model_name)
 
@@ -150,6 +181,8 @@ def get_model(device, opts, model_name):
         return PolishGPT2(device, m.group(1))
     elif normalized_model_name in ['gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl']:
         return GPT2(device, opts, normalized_model_name)
+    elif normalized_model_name in ['t5-small', 't5-base', 't5-large', 'google/t5-v1_1-base']:
+        return T5(device, opts, normalized_model_name)
     else:
         print(f'Unknown model {model_name}', file=sys.stderr)
         exit(1)
