@@ -10,7 +10,7 @@ from pathlib import Path
 import py7zr
 import argparse
 import itertools as it
-import re
+import regex as re
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 import transformers as trans
 
@@ -91,7 +91,11 @@ def unquote(t):
 def prepare_input(line, opts):
     line = line.rstrip('\n')
 
+    inp_fields = line.split('\t')
+
     inp = opts.input_pattern.replace('{}', line)
+
+    inp = re.sub(r'\{(\d+)\}', lambda m: inp_fields[int(m.group(1)) - 1], inp)
 
     if opts.prompt is not None:
         inp = opts.prompt + inp
