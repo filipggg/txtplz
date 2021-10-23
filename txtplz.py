@@ -224,6 +224,14 @@ def process_output(opts, inp, out):
         if m:
             final_out = final_out[0:m.start()]
 
+    if opts.search is not None:
+        m = re.search(opts.search, final_out)
+        if m:
+            if m.groups():
+                final_out = '\t'.join(m.groups())
+            else:
+                final_out = m.group(0)
+
     return final_out
 
 
@@ -247,6 +255,7 @@ parser.add_argument('--remove-input', help='remove input', action='store_true')
 parser.add_argument('--no-sampling', help='switch off sampliong', action='store_true')
 parser.add_argument('--delimiter', help='end delimiter', type=str, default=None)
 parser.add_argument('--input-pattern', help='end delimiter', type=str, default='{}')
+parser.add_argument('--search', help='pattern',type=str,default=None)
 opts = parser.parse_args()
 
 if opts.no_sampling:
