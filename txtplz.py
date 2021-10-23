@@ -126,7 +126,7 @@ class PolishGPT2:
     def run(self, line_batch):
         results = self.model.sample(
             line_batch,
-            beam=5, sampling=True, sampling_topk=50, sampling_topp=0.95,
+            beam=5, sampling=(not opts.no_sampling), sampling_topk=opts.topk, sampling_topp=opts.topp,
             temperature=0.5, max_len_a=2, max_len_b=300, no_repeat_ngram_size=3)
         return results
 
@@ -150,7 +150,7 @@ class GPT2:
         padded_tokens = list(zip(*it.zip_longest(*tokens, fillvalue=self.pad_token_id)))
 
         t = torch.tensor(padded_tokens).to(self.device)
-        results = self.model.generate(t, beam=5, do_sample=True, sampling_topk=50, sampling_topp=0.95,
+        results = self.model.generate(t, beam=5, do_sample=(not opts.no_sampling), sampling_topk=opts.topk, sampling_topp=opts.topp,
                                       max_length=100,
                                       temperature=0.5, max_len_a=2, max_len_b=300, no_repeat_ngram_size=3)
         return (self._detok(result) for result in results)
@@ -171,11 +171,11 @@ class T5:
             input_ids=inputs['input_ids'],
             attention_mask=inputs['attention_mask'],
             num_beams=1,
-#            top_k=50,
-#            top_p=0.95,
+#            top_k=opts.topk,
+#            top_p=opts.topp,
 #            temperature=1.0,
 #            no_repeat_ngram_size=3,
-            do_sample=False)
+            do_sample=(not opts.no_sampling))
 
         return self.tokenizer.batch_decode(output_sequences, skip_special_tokens=False)
 
@@ -194,13 +194,26 @@ def get_model(device, opts, model_name):
         exit(1)
 
 
-def process_output(opts, out):
+def remove_prefix(prefix, s):
+    prefix_len = len(prefix)
+    if s[0:prefix_len] == prefix:
+        return s[prefix_len:]
+
+    return s
+
+
+def process_output(opts, inp, out):
     final_out = out
 
-    if opts.prompt:
-        promptlen = len(opts.prompt)
-        if out[0:promptlen] == opts.prompt:
-            final_out = out[promptlen:]
+    removed_all_input = False
+    if opts.remove_input:
+        s = remove_prefix(inp, final_out)
+        if s != final_out:
+            removed_all_input = True
+            final_out = s
+
+    if not removed_all_input and opts.prompt:
+        final_out = remove_prefix(opts.prompt, final_out)
 
     if opts.delimiter is not None:
         m = re.search(opts.delimiter, final_out)
@@ -219,10 +232,22 @@ parser.add_argument('--batch-size',
 parser.add_argument('--prompt',
                     type=str, default=None,
                     help='prompt')
+parser.add_argument('--topk',
+                    type=int, default=50,
+                    help='topk')
+parser.add_argument('--topp',
+                    type=float, default=0.95,
+                    help='topp')
 parser.add_argument('--mark-tokens', help='mark tokens', action='store_true')
+parser.add_argument('--remove-input', help='remove input', action='store_true')
+parser.add_argument('--no-sampling', help='switch off sampliong', action='store_true')
 parser.add_argument('--delimiter', help='end delimiter', type=str, default=None)
 parser.add_argument('--input-pattern', help='end delimiter', type=str, default='{}')
 opts = parser.parse_args()
+
+if opts.no_sampling:
+    opts.topk = -1
+    opts.topp = -1.0
 
 opts.prompt = unquote(opts.prompt)
 opts.delimiter = unquote(opts.delimiter)
@@ -234,5 +259,5 @@ model = get_model(device, opts, model_name)
 
 for line_batch in grouper(opts.batch_size, (prepare_input(line, opts) for line in sys.stdin)):
     results = model.run(line_batch)
-    for output_line in results:
-        print(process_output(opts, output_line))
+    for input_line, output_line in zip(line_batch, results):
+        print(process_output(opts, input_line, output_line))
