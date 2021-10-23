@@ -131,7 +131,7 @@ class PolishGPT2:
         results = self.model.sample(
             line_batch,
             beam=5, sampling=(not opts.no_sampling), sampling_topk=opts.topk, sampling_topp=opts.topp,
-            temperature=0.5, max_len_a=2, max_len_b=300, no_repeat_ngram_size=3)
+            temperature=opts.temperature, max_len_a=2, max_len_b=300, no_repeat_ngram_size=3)
         return results
 
 
@@ -156,7 +156,7 @@ class GPT2:
         t = torch.tensor(padded_tokens).to(self.device)
         results = self.model.generate(t, beam=5, do_sample=(not opts.no_sampling), sampling_topk=opts.topk, sampling_topp=opts.topp,
                                       max_length=100,
-                                      temperature=0.5, max_len_a=2, max_len_b=300, no_repeat_ngram_size=3)
+                                      temperature=opts.temperature, max_len_a=2, max_len_b=300, no_repeat_ngram_size=3)
         return (self._detok(result) for result in results)
 
 
@@ -177,7 +177,7 @@ class T5:
             num_beams=1,
 #            top_k=opts.topk,
 #            top_p=opts.topp,
-#            temperature=1.0,
+#            temperature=opts.temperature,
 #            no_repeat_ngram_size=3,
             do_sample=(not opts.no_sampling))
 
@@ -250,6 +250,9 @@ parser.add_argument('--topk',
 parser.add_argument('--topp',
                     type=float, default=0.95,
                     help='topp')
+parser.add_argument('--temperature',
+                    type=float, default=1.0,
+                    help='temperature')
 parser.add_argument('--mark-tokens', help='mark tokens', action='store_true')
 parser.add_argument('--remove-input', help='remove input', action='store_true')
 parser.add_argument('--no-sampling', help='switch off sampliong', action='store_true')
