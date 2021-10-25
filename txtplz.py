@@ -32,7 +32,11 @@ alt_names = {
     't5.base': 't5-base',
     't5.large': 't5-large',
 
-    't5.v1_1.large': 'google/t5-v1_1-base'
+    't5.v1_1.large': 'google/t5-v1_1-base',
+
+    'mt5.small': 'google/mt5-small',
+    'mt5.base': 'google/mt5-base',
+    'mt5.large': 'google/mt5-large'
 }
 
 def normalize_model_name(model_name):
@@ -248,7 +252,7 @@ def get_model(device, opts, model_name):
         return PolishGPT2(device, m.group(1))
     elif normalized_model_name in ['gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl']:
         return GPT2(device, opts, normalized_model_name)
-    elif normalized_model_name in ['t5-small', 't5-base', 't5-large', 'google/t5-v1_1-base']:
+    elif normalized_model_name in ['t5-small', 't5-base', 't5-large', 'google/t5-v1_1-base', 'google/mt5-small', 'google/mt5-base', 'google/mt5-large']:
         return T5(device, opts, normalized_model_name)
     elif normalized_model_name == 'polish.roberta.large':
         return PolishRoberta(device, '', 'large')
