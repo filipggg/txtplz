@@ -215,8 +215,18 @@ class T5:
         self.tokenizer.padding_side = "left"
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
+    def _preprocess_batch(self, line_batch):
+        return [self._preprocess_line(line) for line in line_batch]
+
+    def _preprocess_line(self, line):
+        counter = 0
+        def inc(m, i=[-1]):
+            i[0] += 1
+            return f'<extra_id_{str(i[0])}>'
+        return re.sub(r'<>', inc, line)
+        
     def run(self, line_batch):
-        inputs = self.tokenizer(line_batch, return_tensors="pt", padding=True).to(device)
+        inputs = self.tokenizer(self._preprocess_batch(line_batch), return_tensors="pt", padding=True).to(device)
 
         output_sequences = self.model.generate(
             input_ids=inputs['input_ids'],
