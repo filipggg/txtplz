@@ -15,6 +15,8 @@ Dependencies
 
 * fairseq (not fairseq-git)
 * python-sentencepiece
+* python-transformers
+* python-huggingface-hub
 
 
 Examples

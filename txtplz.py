@@ -3,6 +3,7 @@
 import os
 from fairseq import hub_utils
 from fairseq.models.transformer_lm import TransformerLanguageModel
+from fairseq.models.roberta import RobertaModel, RobertaHubInterface
 import sys
 import torch
 import requests
@@ -13,6 +14,7 @@ import itertools as it
 import regex as re
 from transformers import T5Tokenizer, T5ForConditionalGeneration
 import transformers as trans
+from zipfile import ZipFile
 
 
 trans.logging.set_verbosity_error()
@@ -55,7 +57,7 @@ def check_files(dir_to_look, files):
     return True
 
 
-def download_model(model_name, url, file_list):
+def download_model(compressor, model_name, url, file_list):
     model_dir_path = f'{model_cache}/{model_name}'
     Path(model_dir_path).mkdir(parents=True, exist_ok=True)
     if not check_files(model_dir_path, file_list):
@@ -63,16 +65,30 @@ def download_model(model_name, url, file_list):
         downloadable_file = f'{model_dir_path}/downloadable'
         downloadable = requests.get(url)
         open(downloadable_file, 'wb').write(downloadable.content)
-        with py7zr.SevenZipFile(downloadable_file, mode='r') as z:
-            z.extractall(path=model_dir_path)
+        if compressor == 'zip':
+            with ZipFile(downloadable_file, 'r') as zip:
+                zip.extractall(path=model_dir_path)
+        else:
+            with py7zr.SevenZipFile(downloadable_file, mode='r') as z:
+                z.extractall(path=model_dir_path)
         os.remove(downloadable_file)
+        print('... done', file=sys.stderr)
     return model_dir_path
 
 
 def download_polish_gpt2_model(model_size):
     return download_model(
+        '7z',
         f'polish-gpt2-{model_size}',
         f'https://github.com/sdadas/polish-nlp-resources/releases/download/gpt-2/gpt2_{model_size}_fairseq.7z',
+        ['model.pt'])
+
+
+def download_polish_roberta_model(version, model_size):
+    return download_model(
+        'zip',
+        f'polish-roberta{version}-{model_size}',
+        f'https://github.com/sdadas/polish-roberta/releases/download/models{version}/roberta_{model_size}_fairseq.zip',
         ['model.pt'])
 
 
@@ -121,6 +137,21 @@ def get_polish_gpt2(variant):
     return model
 
 
+def get_polish_roberta(version, model_size):
+    model_dir = download_polish_roberta_model(version, model_size)
+
+    loaded = hub_utils.from_pretrained(
+        model_name_or_path=model_dir,
+        data_name_or_path=model_dir,
+        bpe="sentencepiece",
+        sentencepiece_vocab=os.path.join(model_dir, "sentencepiece.bpe.model"),
+        load_checkpoint_heads=True,
+        archive_map=RobertaModel.hub_models()
+    )
+    model = RobertaHubInterface(loaded['args'], loaded['task'], loaded['models'][0])
+    return model
+
+
 class PolishGPT2:
     def __init__(self, device, variant):
         self.model = get_polish_gpt2(variant)
@@ -133,6 +164,22 @@ class PolishGPT2:
             beam=5, sampling=(not opts.no_sampling), sampling_topk=opts.topk, sampling_topp=opts.topp,
             temperature=opts.temperature, max_len_a=2, max_len_b=300, no_repeat_ngram_size=3)
         return results
+
+
+class PolishRoberta:
+    def __init__(self, device, version, model_size):
+        self.model = get_polish_roberta(version, model_size)
+        self.model.to(device)
+        self.model.eval()
+
+    def run(self, line_batch):
+        return [self.run_for_line(line) for line in line_batch]
+
+    def run_for_line(self, line):
+        result = (self.model.fill_mask(
+            line.replace('<>', '<mask>'),
+            topk=1))[0][0]
+        return result
 
 
 class GPT2:
@@ -193,6 +240,12 @@ def get_model(device, opts, model_name):
         return GPT2(device, opts, normalized_model_name)
     elif normalized_model_name in ['t5-small', 't5-base', 't5-large', 'google/t5-v1_1-base']:
         return T5(device, opts, normalized_model_name)
+    elif normalized_model_name == 'polish.roberta.large':
+        return PolishRoberta(device, '', 'large')
+    elif normalized_model_name == 'polish.roberta.base':
+        return PolishRoberta(device, '', 'base')
+    elif normalized_model_name == 'polish.roberta.v2.base':
+        return PolishRoberta(device, '-v2', 'base')
     else:
         print(f'Unknown model {model_name}', file=sys.stderr)
         exit(1)
