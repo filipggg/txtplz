@@ -73,6 +73,14 @@ Q: What is the capital city of Wielkopolska? A: Wielin Wielka
 Q: What is the capital city of Soviet Union? A: Moscow
 ```
 
+Find adjectives for names
+
+```
+printf '%s\n' Italy Finland Argentina 'the United States of America' 'USSR' 'Oceania' Laos 'Burkina Faso' \
+| ./txtplz.py gpt2.xl --prompt 'Give adjectives for country names\nPoland - Polish\nGreat Britain - British\nSpain - Spanish\n' --input-pattern '{} -' --delimiter '\n' --temperature 0.5
+
+```
+
 Lemmatize Polish names
 
 ```
